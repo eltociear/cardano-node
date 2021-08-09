@@ -1817,11 +1817,14 @@ fromLedgerTxExtraKeyWitnesses sbe body =
     ShelleyBasedEraShelley -> TxExtraKeyWitnessesNone
     ShelleyBasedEraAllegra -> TxExtraKeyWitnessesNone
     ShelleyBasedEraMary    -> TxExtraKeyWitnessesNone
-    ShelleyBasedEraAlonzo  -> TxExtraKeyWitnesses
+    ShelleyBasedEraAlonzo
+      | Set.null keyhashes -> TxExtraKeyWitnessesNone
+      | otherwise          -> TxExtraKeyWitnesses
                                 ExtraKeyWitnessesInAlonzoEra
                                 [ PaymentKeyHash (Shelley.coerceKeyRole keyhash)
-                                | let keyhashes = Alonzo.reqSignerHashes body
-                                , keyhash <- Set.toList keyhashes ]
+                                | keyhash <- Set.toList keyhashes ]
+      where
+        keyhashes = Alonzo.reqSignerHashes body
 
 fromLedgerTxWithdrawals
   :: ShelleyBasedEra era
