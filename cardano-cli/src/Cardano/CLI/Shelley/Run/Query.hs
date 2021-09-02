@@ -36,6 +36,7 @@ import           Cardano.Ledger.Coin
 import           Cardano.Ledger.Crypto (StandardCrypto)
 import           Cardano.Ledger.Keys (KeyHash (..), KeyRole (..))
 import           Cardano.Prelude hiding (atomically)
+import           Cardano.Slotting.Slot (WithOrigin(..))
 import           Control.Monad.Trans.Except (except)
 import           Control.Monad.Trans.Except.Extra (firstExceptT, handleIOExceptT, hoistMaybe, left)
 import           Data.Aeson (ToJSON (..), (.=))
@@ -214,6 +215,9 @@ runQueryTip (AnyConsensusModeParams cModeParams) network mOutFile = do
         executeLocalStateQueryExprWithChainSync localNodeConnInfo Nothing $ \ntcVersion -> do
           era <- queryExpr (QueryCurrentEra CardanoModeIsMultiEra)
           eraHistory <- queryExpr (QueryEraHistory CardanoModeIsMultiEra)
+          headerStateTip <- if ntcVersion >= NodeToClientV_9
+            then queryExpr QueryHeaderStateTip
+            else return Origin
           mSystemStart <- if ntcVersion >= NodeToClientV_9
             then Just <$> queryExpr QuerySystemStart
             else return Nothing
@@ -221,6 +225,7 @@ runQueryTip (AnyConsensusModeParams cModeParams) network mOutFile = do
             { O.era = era
             , O.eraHistory = eraHistory
             , O.mSystemStart = mSystemStart
+            , O.headerStateTip = headerStateTip
             }
 
       mLocalState <- hushM (first ShelleyQueryCmdAcquireFailure eLocalState) $ \e ->
@@ -229,6 +234,9 @@ runQueryTip (AnyConsensusModeParams cModeParams) network mOutFile = do
       let tipSlotNo = case chainTip of
             ChainTipAtGenesis -> 0
             ChainTip slotNo _ _ -> slotNo
+
+      forM_ eLocalState $ \localState -> do
+        liftIO . T.hPutStrLn IO.stderr $ "headerStateTip " <> show (O.headerStateTip localState)
 
       mLocalStateOutput :: Maybe O.QueryTipLocalStateOutput <- fmap join . forM mLocalState $ \localState -> do
         case slotToEpoch tipSlotNo (O.eraHistory localState) of

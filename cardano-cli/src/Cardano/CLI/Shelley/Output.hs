@@ -7,10 +7,11 @@ module Cardano.CLI.Shelley.Output
   , QueryTipLocalStateOutput(..)
   ) where
 
-import           Cardano.Api (AnyCardanoEra, ChainTip (..), EpochNo, serialiseToRawBytesHexText, EraHistory (..), CardanoMode)
+import           Cardano.Api (AnyCardanoEra, ChainTip (..), EpochNo, serialiseToRawBytesHexText, EraHistory (..), CardanoMode, HeaderStateTip (..))
 import           Cardano.CLI.Shelley.Orphans ()
 import           Cardano.Prelude (Text)
 import           Cardano.Slotting.Block (BlockNo (..))
+import           Cardano.Slotting.Slot (WithOrigin (..))
 import           Cardano.Slotting.Time (SystemStart (..))
 import           Control.Monad
 import           Data.Aeson (KeyValue, ToJSON (..), (.=))
@@ -27,10 +28,11 @@ data QueryTipOutput localState = QueryTipOutput
   , mLocalState :: Maybe localState
   }
 
-data QueryTipLocalState = QueryTipLocalState
+data QueryTipLocalState mode = QueryTipLocalState
   { era :: AnyCardanoEra
   , eraHistory :: EraHistory CardanoMode
   , mSystemStart :: Maybe SystemStart
+  , headerStateTip :: WithOrigin (HeaderStateTip mode)
   }
 
 data QueryTipLocalStateOutput = QueryTipLocalStateOutput

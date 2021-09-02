@@ -4,6 +4,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -114,7 +115,6 @@ import           Cardano.Api.Protocol.Types
 import           Cardano.Api.Query
 import           Cardano.Api.TxInMode
 
-
 -- ----------------------------------------------------------------------------
 -- The types for the client side of the node-to-client IPC protocols
 --
@@ -189,7 +189,8 @@ connectToLocalNode localNodeConnectInfo handlers
 -- protocol handlers parameterized on the negotiated node-to-client protocol
 -- version.
 --
-connectToLocalNodeWithVersion :: LocalNodeConnectInfo mode
+connectToLocalNodeWithVersion :: forall mode.
+                                 LocalNodeConnectInfo mode
                               -> (NodeToClientVersion -> LocalNodeClientProtocolsInMode mode)
                               -> IO ()
 connectToLocalNodeWithVersion LocalNodeConnectInfo {
@@ -217,8 +218,8 @@ connectToLocalNodeWithVersion LocalNodeConnectInfo {
 
 
 mkVersionedProtocols :: forall block.
-                        ( Consensus.ShowQuery (Consensus.Query block),
-                          ProtocolClient block
+                        ( Consensus.ShowQuery (Consensus.Query block)
+                        , ProtocolClient block
                         )
                      => NetworkId
                      -> ProtocolClientInfoArgs block

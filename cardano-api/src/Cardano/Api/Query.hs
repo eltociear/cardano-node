@@ -51,6 +51,8 @@ module Cardano.Api.Query (
     -- * Internal conversion functions
     toLedgerUTxO,
     fromLedgerUTxO,
+
+    HeaderStateTip(..)
   ) where
 
 import           Data.Aeson (ToJSON (..), object, (.=))
@@ -79,9 +81,10 @@ import           Ouroboros.Consensus.Cardano.Block (LedgerState (..), StandardCr
 import qualified Ouroboros.Consensus.Cardano.Block as Consensus
 import qualified Ouroboros.Consensus.Ledger.Query as Consensus
 import qualified Ouroboros.Consensus.Shelley.Ledger as Consensus
-import           Ouroboros.Network.Block (Serialised)
+import           Ouroboros.Network.Block (Serialised, HeaderHash)
 
 import           Cardano.Binary
+import           Cardano.Slotting.Slot (WithOrigin (..))
 import           Cardano.Slotting.Time (SystemStart (..))
 
 import qualified Cardano.Chain.Update.Validation.Interface as Byron.Update
@@ -126,6 +129,21 @@ data QueryInMode mode result where
 
   QuerySystemStart
     :: QueryInMode mode SystemStart
+
+  QueryHeaderStateTip
+    :: QueryInMode mode (WithOrigin (HeaderStateTip mode))
+
+data HeaderStateTip mode where
+  HeaderStateTip
+    :: ConsensusBlockForMode mode ~ blk
+    => Consensus.HeaderStateTip blk
+    -> HeaderStateTip mode
+
+instance (Show (HeaderHash blk), ConsensusBlockForMode mode ~ blk) => Show (HeaderStateTip mode) where
+  show (HeaderStateTip cHeaderStateTip) = show cHeaderStateTip
+
+-- headerStateTipSlot :: HeaderStateTip mode -> SlotNo
+-- headerStateTipSlot (HeaderStateTip cHeaderStateTip) = 
 
 data EraHistory mode where
   EraHistory
@@ -374,6 +392,8 @@ toConsensusQuery (QueryEraHistory CardanoModeIsMultiEra) =
 
 toConsensusQuery QuerySystemStart = Some Consensus.GetSystemStart
 
+toConsensusQuery QueryHeaderStateTip = Some Consensus.GetHeaderStateTip
+
 toConsensusQuery (QueryInEra ByronEraInCardanoMode QueryByronUpdateState) =
     Some $ Consensus.BlockQuery $
       Consensus.QueryIfCurrentByron
@@ -494,6 +514,12 @@ fromConsensusQueryResult QuerySystemStart q' r' =
     case q' of
       Consensus.GetSystemStart
         -> r'
+      _ -> fromConsensusQueryResultMismatch
+
+fromConsensusQueryResult QueryHeaderStateTip q' r' =
+    case q' of
+      Consensus.GetHeaderStateTip
+        -> fmap HeaderStateTip r'
       _ -> fromConsensusQueryResultMismatch
 
 fromConsensusQueryResult (QueryCurrentEra CardanoModeIsMultiEra) q' r' =
