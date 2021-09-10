@@ -912,7 +912,9 @@ makeTransactionBodyAutoBalance eraInMode systemstart history pparams
       first TxBodyError $ -- TODO: impossible to fail now
         makeTransactionBody txbodycontent1 {
           txFee  = TxFeeExplicit explicitTxFees fee,
-          txOuts = TxOut changeaddr balance TxOutDatumHashNone : txOuts txbodycontent
+          txOuts = accountForNoChange
+                     (TxOut changeaddr balance TxOutDatumHashNone)
+                     (txOuts txbodycontent)
         }
     return (BalancedTxBody txbody3 (TxOut changeaddr balance TxOutDatumHashNone) fee)
  where
@@ -921,6 +923,15 @@ makeTransactionBodyAutoBalance eraInMode systemstart history pparams
 
    era' :: CardanoEra era
    era' = cardanoEra
+
+   -- In the event of spending the exact amount of lovelace in
+   -- the specified input(s), this function excludes the change
+   -- output.
+   accountForNoChange :: TxOut era -> [TxOut era] -> [TxOut era]
+   accountForNoChange change@(TxOut _ balance _) rest =
+     case txOutValueToLovelace balance of
+       Lovelace 0 -> rest
+       _ -> change : rest
 
    balanceCheck :: TxOutValue era -> Either TxBodyErrorAutoBalance ()
    balanceCheck balance
