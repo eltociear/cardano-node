@@ -1,5 +1,6 @@
 PROJECT_NAME = cardano-node
 NUM_PROC     = $(nproc --all)
+ERA         ?= mary
 
 
 help: ## Print documentation
@@ -33,14 +34,15 @@ test-ghcid-nix: ## Run ghcid on test suites with Nix
 test-chairmans-cluster:
 	@scripts/chairmans-cluster/cluster-test.sh
 
-profiles:
-	@./nix/workbench/wb dump-profiles
 
-profile-names:
-	@./nix/workbench/wb profile-names
+bench-chainsync: CLUSTER_PROFILE=chainsync-${ERA}
+bench-chainsync: cluster-shell-dev
 
 CLUSTER_PROFILE    ?= default-alzo
 CLUSTER_ARGS_EXTRA ?=
+
+cluster-profiles:
+	@./nix/workbench/wb profile list
 
 cluster-shell:
 	nix-shell --max-jobs 8 --cores 0 --show-trace --argstr clusterProfile ${CLUSTER_PROFILE} --arg 'autoStartCluster' true

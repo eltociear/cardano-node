@@ -20,7 +20,7 @@ global_profile_eras=(
 profile() {
 local op=${1:-list}; test $# -gt 0 && shift
 
-case "${op}" in
+case "$op" in
     list | names )
         profile generate-all | jq 'keys'
         ;;
@@ -38,7 +38,7 @@ case "${op}" in
         ';;
 
     has-profile )
-        local usage="USAGE: wb profile has-profile NAME"
+        local usage="USAGE: wb profile $op NAME"
         local name=${1:?$usage}
 
         with_era_profiles '
@@ -59,7 +59,7 @@ case "${op}" in
           ';;
 
     get )
-        local usage="USAGE: wb profile get NAME"
+        local usage="USAGE: wb profile $op NAME"
         local name=${1:?$usage}
 
         if test -f  "$name"
@@ -70,7 +70,7 @@ case "${op}" in
         ;;
 
     describe )
-        local usage="USAGE: wb profile describe NAME"
+        local usage="USAGE: wb profile $op NAME"
         local name=${1:?$usage}
 
         profile get $name |
@@ -82,8 +82,26 @@ case "${op}" in
           profile_pretty_describe(.)
           ' --raw-output);;
 
+    has-preset )
+        local usage="USAGE: wb profile $op NAME"
+        local profile=${1:?$usage}
+        profile get "$profile" | jqtest ".preset != null";;
+
+    preset-get-file )
+        local usage="USAGE: wb profile $op PRESET-NAME DESC FILE"
+        local preset=${1:?$usage}
+        local   desc=${2:?$usage}
+        local   file=${3:?$usage}
+        local preset_dir=$global_basedir/profiles/presets/$preset
+        local       path=$preset_dir/$file
+
+        if   test ! -d "$preset_dir"; then fail "unknown preset: $preset"
+        elif test ! -f "$path";       then fail "preset $preset has no file: $file"
+        else echo "$path"
+        fi;;
+
     node-specs )
-        local usage="USAGE: wb profile node-specs PROFILE-JSON ENV-JSON"
+        local usage="USAGE: wb profile $op PROFILE-JSON ENV-JSON"
         local profile_json=${1:?$usage}
         local env_json=${2:?$usage}
 
