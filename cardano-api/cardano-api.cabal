@@ -133,7 +133,6 @@ library
                       , plutus-ledger-api
                       , prettyprinter
                       , scientific
-                      , serialise
                       , shelley-spec-ledger
                       , small-steps
                       , stm

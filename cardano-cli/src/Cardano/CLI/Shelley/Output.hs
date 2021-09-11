@@ -5,13 +5,14 @@ module Cardano.CLI.Shelley.Output
   ( QueryTipOutput(..)
   , QueryTipLocalState(..)
   , QueryTipLocalStateOutput(..)
+  , HeaderStateTipOutput(..)
   ) where
 
-import           Cardano.Api (AnyCardanoEra, ChainTip (..), EpochNo, serialiseToRawBytesHexText, EraHistory (..), CardanoMode, HeaderStateTip (..))
+import           Cardano.Api (AnyCardanoEra, {- ChainTip (..), -} EpochNo, {- serialiseToRawBytesHexText, -} EraHistory (..), CardanoMode, HeaderStateTip (..))
 import           Cardano.CLI.Shelley.Orphans ()
 import           Cardano.Prelude (Text)
 import           Cardano.Slotting.Block (BlockNo (..))
-import           Cardano.Slotting.Slot (WithOrigin (..))
+import           Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
 import           Cardano.Slotting.Time (SystemStart (..))
 import           Control.Monad
 import           Data.Aeson (KeyValue, ToJSON (..), (.=))
@@ -23,8 +24,14 @@ import           Shelley.Spec.Ledger.Scripts ()
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Encoding as JE
 
+data HeaderStateTipOutput = HeaderStateTipOutput
+  { slotNo :: SlotNo
+  , blockNo :: BlockNo
+  , headerHash :: Text
+  }
+
 data QueryTipOutput localState = QueryTipOutput
-  { chainTip :: ChainTip
+  { chainTip :: WithOrigin HeaderStateTipOutput
   , mLocalState :: Maybe localState
   }
 
@@ -32,7 +39,7 @@ data QueryTipLocalState mode = QueryTipLocalState
   { era :: AnyCardanoEra
   , eraHistory :: EraHistory CardanoMode
   , mSystemStart :: Maybe SystemStart
-  , headerStateTip :: WithOrigin (HeaderStateTip mode)
+  , mHeaderStateTip :: Maybe (WithOrigin (HeaderStateTip mode))
   }
 
 data QueryTipLocalStateOutput = QueryTipLocalStateOutput
@@ -53,24 +60,40 @@ data QueryTipLocalStateOutput = QueryTipLocalStateOutput
 
 instance ToJSON (QueryTipOutput QueryTipLocalStateOutput) where
   toJSON a = case chainTip a of
-    ChainTipAtGenesis -> J.Null
-    ChainTip slot headerHash (BlockNo bNum) ->
+    Origin -> J.Null
+    At (HeaderStateTipOutput slot bNum hh) ->
       J.object $
         ( ("slot" ..= slot)
-        . ("hash" ..= serialiseToRawBytesHexText headerHash)
+        . ("hash" ..= hh)
         . ("block" ..= bNum)
         . ("era" ..=? (mLocalState a >>= mEra))
         . ("epoch" ..=? (mLocalState a >>= mEpoch))
         . ("syncProgress" ..=? (mLocalState a >>= mSyncProgress))
         ) []
   toEncoding a = case chainTip a of
-    ChainTipAtGenesis -> JE.null_
-    ChainTip slot headerHash (BlockNo bNum) ->
+    Origin -> JE.null_
+    At (HeaderStateTipOutput slot bNum hh) ->
       J.pairs $ mconcat $
         ( ("slot" ..= slot)
-        . ("hash" ..= serialiseToRawBytesHexText headerHash)
+        . ("hash" ..= hh)
         . ("block" ..= bNum)
         . ("era" ..=? (mLocalState a >>= mEra))
         . ("epoch" ..=? (mLocalState a >>= mEpoch))
         . ("syncProgress" ..=? (mLocalState a >>= mSyncProgress))
         ) []
+
+-- instance ToJSON HeaderStateTipOutput where
+--   toJSON a = case a of
+--     HeaderStateTipOutput slot bNum hh ->
+--       J.object $
+--         ( ("slot" ..= slot)
+--         . ("hash" ..= hh)
+--         . ("block" ..= bNum)
+--         ) []
+--   toEncoding a = case a of
+--     HeaderStateTipOutput slot bNum hh ->
+--       J.pairs $ mconcat $
+--         ( ("slot" ..= slot)
+--         . ("hash" ..= hh)
+--         . ("block" ..= bNum)
+--         ) []

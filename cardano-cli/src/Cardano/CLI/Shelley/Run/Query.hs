@@ -36,7 +36,7 @@ import           Cardano.Ledger.Coin
 import           Cardano.Ledger.Crypto (StandardCrypto)
 import           Cardano.Ledger.Keys (KeyHash (..), KeyRole (..))
 import           Cardano.Prelude hiding (atomically)
-import           Cardano.Slotting.Slot (WithOrigin(..))
+import           Cardano.Slotting.Slot (WithOrigin (..))
 import           Control.Monad.Trans.Except (except)
 import           Control.Monad.Trans.Except.Extra (firstExceptT, handleIOExceptT, hoistMaybe, left)
 import           Data.Aeson (ToJSON (..), (.=))
@@ -54,6 +54,8 @@ import           Shelley.Spec.Ledger.EpochBoundary
 import           Shelley.Spec.Ledger.LedgerState hiding (_delegations)
 import           Shelley.Spec.Ledger.Scripts ()
 import           Text.Printf (printf)
+-- import           Ouroboros.Consensus.Block.Abstract (toRawHash)
+-- import           Cardano.Tracing.Render (renderHeaderHash)
 
 import qualified Cardano.CLI.Shelley.Output as O
 import qualified Cardano.Ledger.Crypto as Crypto
@@ -73,9 +75,20 @@ import qualified Ouroboros.Network.Protocol.LocalStateQuery.Type as LocalStateQu
 import qualified Shelley.Spec.Ledger.API.Protocol as Ledger
 import qualified System.IO as IO
 
+import qualified Data.ByteString.Base16 as B16
+
+import           Ouroboros.Consensus.Block (ConvertRawHash (..))
+import           Ouroboros.Network.Block (HeaderHash)
+import           Ouroboros.Consensus.Cardano.Block (CardanoBlock)
+
 {- HLINT ignore "Reduce duplication" -}
 {- HLINT ignore "Use const" -}
 {- HLINT ignore "Use let" -}
+
+-- | Hex encode and render a 'HeaderHash' as text.
+renderHeaderHash :: (ConvertRawHash blk, blk ~ CardanoBlock StandardCrypto) => proxy blk -> HeaderHash blk -> Text
+renderHeaderHash p = Text.decodeLatin1 . B16.encode . toRawHash p
+
 
 data ShelleyQueryCmdError
   = ShelleyQueryCmdEnvVarSocketErr !EnvSocketError
@@ -211,32 +224,50 @@ runQueryTip (AnyConsensusModeParams cModeParams) network mOutFile = do
     CardanoMode -> do
       let localNodeConnInfo = LocalNodeConnectInfo cModeParams network sockPath
 
-      (chainTip, eLocalState) <- liftIO $
-        executeLocalStateQueryExprWithChainSync localNodeConnInfo Nothing $ \ntcVersion -> do
-          era <- queryExpr (QueryCurrentEra CardanoModeIsMultiEra)
-          eraHistory <- queryExpr (QueryEraHistory CardanoModeIsMultiEra)
-          headerStateTip <- if ntcVersion >= NodeToClientV_9
-            then queryExpr QueryHeaderStateTip
-            else return Origin
-          mSystemStart <- if ntcVersion >= NodeToClientV_9
-            then Just <$> queryExpr QuerySystemStart
-            else return Nothing
-          return O.QueryTipLocalState
-            { O.era = era
-            , O.eraHistory = eraHistory
-            , O.mSystemStart = mSystemStart
-            , O.headerStateTip = headerStateTip
-            }
+      eLocalState <- liftIO $ executeLocalStateQueryExpr localNodeConnInfo Nothing $ \ntcVersion -> do
+        era <- queryExpr (QueryCurrentEra CardanoModeIsMultiEra)
+        eraHistory <- queryExpr (QueryEraHistory CardanoModeIsMultiEra)
+        mHeaderStateTip <- if ntcVersion >= NodeToClientV_10
+          then Just <$> queryExpr QueryHeaderStateTip
+          else return Nothing
+        mSystemStart <- if ntcVersion >= NodeToClientV_9
+          then Just <$> queryExpr QuerySystemStart
+          else return Nothing
+        return O.QueryTipLocalState
+          { O.era = era
+          , O.eraHistory = eraHistory
+          , O.mSystemStart = mSystemStart
+          , O.mHeaderStateTip = mHeaderStateTip
+          }
 
       mLocalState <- hushM (first ShelleyQueryCmdAcquireFailure eLocalState) $ \e ->
         liftIO . T.hPutStrLn IO.stderr $ "Warning: Local state unavailable: " <> renderShelleyQueryCmdError e
 
-      let tipSlotNo = case chainTip of
-            ChainTipAtGenesis -> 0
-            ChainTip slotNo _ _ -> slotNo
+      chainTip <- case mLocalState >>= O.mHeaderStateTip of
+        Just headerStateTip ->
+          case headerStateTip of
+            Origin -> return Origin
+            At hst -> return $ At O.HeaderStateTipOutput
+              { O.slotNo = headerStateTipToSlotNo hst
+              , O.blockNo = headerStateTipToBlockNo hst
+              , O.headerHash = renderHeaderHash Proxy (headerStateTipToHeaderHash hst)
+              }
+        Nothing -> do
+          liftIO . T.hPutStrLn IO.stderr $
+            "Warning: Local header state query unavailable.  Falling back to chain sync query"
+          ct <- liftIO $ getLocalChainTip localNodeConnInfo
+          case ct of
+            ChainTipAtGenesis -> return Origin
+            ChainTip slotNo hash blockNo ->
+              return $ At O.HeaderStateTipOutput
+                { O.slotNo = slotNo
+                , O.headerHash = serialiseToRawBytesHexText hash
+                , O.blockNo = blockNo
+                }
 
-      forM_ eLocalState $ \localState -> do
-        liftIO . T.hPutStrLn IO.stderr $ "headerStateTip " <> show (O.headerStateTip localState)
+      let tipSlotNo = case chainTip of
+            Origin -> 0
+            At (O.HeaderStateTipOutput slotNo _ _) -> slotNo
 
       mLocalStateOutput :: Maybe O.QueryTipLocalStateOutput <- fmap join . forM mLocalState $ \localState -> do
         case slotToEpoch tipSlotNo (O.eraHistory localState) of

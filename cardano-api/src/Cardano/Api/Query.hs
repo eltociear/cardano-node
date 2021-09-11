@@ -52,7 +52,10 @@ module Cardano.Api.Query (
     toLedgerUTxO,
     fromLedgerUTxO,
 
-    HeaderStateTip(..)
+    HeaderStateTip(..),
+    headerStateTipToSlotNo,
+    headerStateTipToBlockNo,
+    headerStateTipToHeaderHash
   ) where
 
 import           Data.Aeson (ToJSON (..), object, (.=))
@@ -135,9 +138,23 @@ data QueryInMode mode result where
 
 data HeaderStateTip mode where
   HeaderStateTip
-    :: ConsensusBlockForMode mode ~ blk
+    :: ( ConsensusBlockForMode mode ~ blk
+      --  , HeaderHash blk ~ Hash BlockHeader
+       )
     => Consensus.HeaderStateTip blk
     -> HeaderStateTip mode
+
+-- headerStateTipToChainTip :: (ConsensusBlockForMode mode ~ blk, HeaderHash blk ~ Hash BlockHeader) => HeaderStateTip mode -> ChainTip
+-- headerStateTipToChainTip (HeaderStateTip (Consensus.HeaderStateTip a b c)) = ChainTip a c b
+
+headerStateTipToSlotNo :: HeaderStateTip mode -> SlotNo
+headerStateTipToSlotNo (HeaderStateTip (Consensus.HeaderStateTip slotNo _ _)) = slotNo
+
+headerStateTipToBlockNo :: HeaderStateTip mode -> BlockNo
+headerStateTipToBlockNo (HeaderStateTip (Consensus.HeaderStateTip _ blockNo _)) = blockNo
+
+headerStateTipToHeaderHash :: ConsensusBlockForMode mode ~ blk => HeaderStateTip mode -> HeaderHash blk
+headerStateTipToHeaderHash (HeaderStateTip (Consensus.HeaderStateTip _ _ headerHash)) = headerHash
 
 instance (Show (HeaderHash blk), ConsensusBlockForMode mode ~ blk) => Show (HeaderStateTip mode) where
   show (HeaderStateTip cHeaderStateTip) = show cHeaderStateTip
@@ -499,7 +516,9 @@ consensusQueryInEraInMode erainmode =
 --
 
 fromConsensusQueryResult :: forall mode block result result'.
-                            ConsensusBlockForMode mode ~ block
+                            ( ConsensusBlockForMode mode ~ block
+                            -- , HeaderHash block ~ Hash BlockHeader
+                            )
                          => QueryInMode mode result
                          -> Consensus.Query block result'
                          -> result'

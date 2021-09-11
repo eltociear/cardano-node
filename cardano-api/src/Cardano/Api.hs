@@ -609,7 +609,11 @@ module Cardano.Api (
     queryExpr,
     determineEraExpr,
 
-    HeaderStateTip(..)
+    HeaderStateTip(..),
+    headerStateTipToSlotNo,
+    headerStateTipToBlockNo,
+    headerStateTipToHeaderHash
+
   ) where
 
 import           Cardano.Api.Address
