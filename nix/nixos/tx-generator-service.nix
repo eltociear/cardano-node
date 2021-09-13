@@ -39,10 +39,35 @@ let
     )
     ++
     [
-      { runBenchmark      = "walletBasedBenchmark";
-                  txCount = tx_count; tps = tps; }
-      { waitBenchmark     = "walletBasedBenchmark"; }
-    ];
+      { delay = 100; }
+      { createChange = 10000011; count = 11; }
+      { runBenchmark      = "benchmark1"; txCount = tx_count / 5; tps = tps; }
+      { waitBenchmark     = "benchmark1"; }
+
+      { delay = 100; }
+      { runBenchmark      = "benchmark2"; txCount = tx_count / 5; tps = tps; }
+      { createChange = 10000012; count = 12; }
+      { waitBenchmark     = "benchmark2"; }
+
+      { delay = 100; }
+      { createChange = 10000013; count = 13; }
+      { runBenchmark      = "benchmark3"; txCount = tx_count / 5; tps = tps; }
+      { waitBenchmark     = "benchmark3"; }
+
+      { delay = 100; }
+      { createChange = 10000014; count = 14; }
+      { runBenchmark      = "benchmark4"; txCount = tx_count / 5; tps = tps; }
+      { waitBenchmark     = "benchmark4"; }
+
+      { delay = 100; }
+      { createChange = 10000015; count = 15; }
+      { runBenchmark      = "benchmark5"; txCount = tx_count / 5; tps = tps; }
+      { waitBenchmark     = "benchmark5"; }
+
+      { delay = 100; }
+      { createChange = 10000016; count = 16; }
+
+   ];
 
   defaultGeneratorScriptFn = basicValueTxWorkload;
 
